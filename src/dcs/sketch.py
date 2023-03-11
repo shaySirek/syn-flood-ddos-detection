@@ -25,6 +25,8 @@ class DistinctCountSketch:
                 s: number of buckets in second-level hash
                 bit_counter_threshold: threshold for the bit counter
         """
+        print(100*'*')
+        print("init DistinctCountSketch")
         self.log_m = log_m
         self.first_lvl_hash_buckets = 2 * log_m
         self.r = r
@@ -80,9 +82,14 @@ class DistinctCountSketch:
                 src_ip, dest_ip, flag = row_record
                 self.record(src_ip, dest_ip, flag)
 
+        print(100*'*')
+        print("record_stream")
         stream.apply(record_row, axis=1)
 
     def top_k(self, epsilon: float, k: int, threshold: float | None = None):
+        print(100*'*')
+        print(f"top_k with threshold={threshold}")
+        
         b = self.first_lvl_hash_buckets - 1
         d_sample: set[tuple[int, int]] = set()
 
@@ -97,17 +104,17 @@ class DistinctCountSketch:
         print(f"b={b}")
 
         # d_sample = distinct sample of source-dest (u, v) pairs
+        print(100*"-")
         print("d_sample")
         print(d_sample)
-        print(100*"-")
 
         cnt = Counter()
         for _, v in d_sample:
             cnt[v] += 1
 
+        print(100*"-")
         print("cnt")
         print(cnt)
-        print(100*"-")
 
         return [(int2ip(v), (2**b) * f) for v, f in cnt.most_common(k)]
 

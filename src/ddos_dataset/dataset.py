@@ -17,6 +17,8 @@ class Dataset:
             self.load()
 
     def load(self):
+        print(100*'*')
+        print(f"Load {self.path}...")
         df = pd.read_csv(self.path, usecols=list(
             self.cols.values()))
         
@@ -39,26 +41,34 @@ class Dataset:
         # NO SYN, NO ACK -> not relevant
         return None
 
-    def calc_params(self, delta: float, epsilon: float, k: int) -> tuple[dict, pd.Series]:
+    def calc_params(self, delta: float, epsilon: float, k: int) -> dict:
+        print(100*'*')
+        print(f"delta={delta}, epsilon={epsilon}, k={k}")
+        print(f"calc_params...")
+        
         n = len(self.df)
         freqs = self.df.groupby([self.cols['dest_ip']])[
             self.cols['src_ip']].unique().map(len).sort_values(ascending=False)
         U = freqs.sum()
         f_k = freqs.values[k - 1]
-        print(f"f_1...k=f_1...{k}={freqs.values[:k]}")
-        print(f"n={n}, U={U}, f_k=f_{k}={f_k}")
-
+        
         pairs = self.df[self.cols['src_ip']] + self.df[self.cols['dest_ip']]
-        print(f"skew={pairs.skew()}")
 
         # log(m) = 32
         s = round((U * log((n + 32) / delta)) / (f_k * (epsilon**2)))
         r = round(log(n / delta))
+        
+        print(100*'*')
+        print(f"f_1...k=f_1...{k}={freqs.values[:k]}")
+        print(f"n={n}, U={U}, f_k=f_{k}={f_k}")
+        print(f"skew={pairs.skew()}")
         print(f"r={r}, s={s}")
 
-        return dict(r=r, s=s), freqs
+        return dict(r=r, s=s)
 
     def naive_syn_flood_detection(self) -> pd.Series:
+        print(100*'*')
+        print(f"naive_syn_flood_detection...")
         df = self.df.groupby([self.cols['src_ip'], self.cols['dest_ip']]).sum()
         df['diff'] = df[self.cols['syn']] - df[self.cols['ack']]
         df = df[df['diff'] > 0]
