@@ -33,3 +33,18 @@ def bit_array(src_ip: int, dest_ip: int):
         (np.ones((1), dtype=int), src_dest_bits), axis=0)
 
     return one_src_dest_bits
+
+
+def bit_array_to_pair(bits) -> tuple[int, int] | None:
+    if bits[0] == 0:
+        return None
+
+    src_dest_pair = 0
+
+    for l in range(1, 65):
+        if bits[l] == bits[0]:  # set bit l of (u,v) pair
+            src_dest_pair = src_dest_pair | (1 << (l-1))
+        elif bits[l] != 0:  # collision >=2 pairs in the bucket
+            return None
+
+    return unpair(src_dest_pair)

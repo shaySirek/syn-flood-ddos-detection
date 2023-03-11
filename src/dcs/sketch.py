@@ -1,21 +1,23 @@
 from collections import defaultdict, Counter
 from typing import Callable, Any
+import json
 
 import numpy as np
+import pandas as pd
 
 from .utils import (
-    bit_array,
     int2ip,
     unpair,
-    LOG_M
+    bit_array,
+    bit_array_to_pair,
+    LOG_M,
 )
 from .hash import h, g
 
 
 class DistinctCountSketch:
 
-    def __init__(self, get_row: Callable[[Any], tuple[int, int, int] | None],
-                 log_m: int = LOG_M, r: int = 3, s: int = 128):
+    def __init__(self, log_m: int = LOG_M, r: int = 3, s: int = 128):
         """
             Params:
                 log_m: number of bits in IP address ->
@@ -34,7 +36,8 @@ class DistinctCountSketch:
                            self.s,
                            self.n_bit_cnt), dtype=int)
 
-        self.get_row = get_row
+        # self.collisions = defaultdict(
+        #     lambda: defaultdict(lambda: defaultdict(set)))
 
     def record(self, src_ip: int, dest_ip: int, flag: int):
         """Record incoming (src_ip, dest_ip) pair, with TCP flag of SYN/ACK
@@ -52,59 +55,63 @@ class DistinctCountSketch:
         for j in range(self.r):
             # second-level bucket
             second_lvl_idx = g(j, src_ip, dest_ip)
+
+            # self.collisions[str(first_lvl_idx)][str(j)][str(
+            #     second_lvl_idx)].add((src_ip, dest_ip))
+
             self.X[first_lvl_idx, j, second_lvl_idx] += flag * \
                 bit_array(src_ip, dest_ip)
-                
-    def record_row(self, row):
-        # load params from df row
-        row_record = self.get_row(row)
-        
-        if row_record is not None:
-            src_ip, dest_ip, flag = row_record
-            self.record(src_ip, dest_ip, flag)            
+
+        # with open('collisions.json', 'wt') as f:
+        #     ser_col = {k: [f"{int2ip(x[0])} -> {int2ip(x[1])}" for x in v]
+        #                for k, v in self.collisions.items()}
+        #     json.dump(ser_col, f)
+
+    def record_stream(self, stream: pd.DataFrame, get_row: Callable[[Any], tuple[int, int, int] | None]):
+        def record_row(row):
+            # load params from df row
+            row_record = get_row(row)
+
+            if row_record is not None:
+                src_ip, dest_ip, flag = row_record
+                self.record(src_ip, dest_ip, flag)
+
+        stream.apply(record_row, axis=1)
 
     def top_k(self, epsilon: float, k: int):
         b = self.first_lvl_hash_buckets - 1
-        d_sample = []
+        d_sample: set[tuple[int, int]] = set()
         threshold = (1 + epsilon) * (self.s / 16)
 
         while (b >= 0 and len(d_sample) < threshold):
-            d_sample.extend(self.get_d_sample(b))
+            d_sample.update(self.get_d_sample(b))
             b -= 1
 
         # d_sample = distinct sample of source-dest (u, v) pairs
-
-        vu = defaultdict(set)
-        for u, v in d_sample:
-            vu[v].add(u)
+        print("d_sample")
+        print(d_sample)
+        print(100*"-")
 
         cnt = Counter()
-        for v in vu.keys():
-            cnt[v] = len(vu[v])
+        for _, v in d_sample:
+            cnt[v] += 1
+
+        print("cnt")
+        print(cnt)
+        print(100*"-")
 
         return [(int2ip(v), (2**(b+1)) * f) for v, f in cnt.most_common(k)]
-        
-    def get_d_sample(self, b: int) -> list[tuple[int, int]]:
-        ds = []
+
+    def get_d_sample(self, b: int) -> set[tuple[int, int]]:
+        ds = set()
 
         for j in range(self.r):
             for k in range(self.s):
                 pair = self.return_singleton(b, j, k)
                 if pair is not None:
-                    ds.append(pair)
+                    ds.add(pair)
 
         return ds
 
     def return_singleton(self, b: int, j: int, k: int) -> tuple[int, int] | None:
-        if self.X[b, j, k, 0] == 0:
-            return None
-
-        src_dest_pair = 0
-
-        for l in range(1, self.n_bit_cnt):
-            if self.X[b, j, k, l] == 1:  # set bit l of (u,v) pair
-                src_dest_pair = src_dest_pair | (1 << (l-1))
-            elif self.X[b, j, k, l] > 1:  # collision >=2 pairs in the bucket
-                return None
-
-        return unpair(src_dest_pair)
+        return bit_array_to_pair(self.X[b, j, k])
