@@ -14,15 +14,24 @@ Download these datasets from [kaggle](https://www.kaggle.com/datasets/devendra41
 head -n 1 datasets/ddos_balanced/final_dataset.csv | cut -d ',' -f 3,5,8,52,55
 ```
 
+### Synthetic Data
+[script](./src/simulate.py)
+
+## Baseline
+Calculate Source of Truth using Naive approach: `naive_syn_flood_detection`.
+
 ## Ideas
 
-### Change the threshold on d_sample length
-As the threshold is lower, the sensitivity is higher.
+- Change the threshold on `d_sample` length. As the threshold is lower, the sensitivity is higher.
+- `Bit Counter threshold`: neglect smaller counts.
+- First-level bucket `space complexity` optimization.
+- Second-level bucket `space complexity` optimization.
+- `Time complexity` optimization.
+- Discuss original parameters
+    - `r=128`
+    - `s` depends on `f_(v_k), which we want to estimate in this algorithm.
 
-### Bit Counter threshold
-neglect smaller counts
-
-### Timeliness
+#### Timeliness
 naive: Reset the sketch every x minutes.
 > But we can reset the sketch in the middle of syn-flood ddos attack.
 
@@ -31,19 +40,11 @@ Therefore, we can maintain two intances of the data structure:
 - Reset every 1 minute.
 - Reset every 1 minute, offset by 30 seconds.
 
-### First-level bucket space complexity optimization
-
-### Discuss original parameters
-- r=128 ?
-- s depends on f_(v_k) which we want to estimate in this algorithm
-
-### Time complexity optimization
-
-### Collisions
+### Collisions density
 
 Example:
 dest_ip 1 has 5 src_ip in bucket 9
 Bucket 9 has 50% collisions = collision_number / (collision_number + ip_number)
 Staticically, dest_ip 1 has 5 * (1/0.5) = 10
 
-### Calculate Source of Truth using Naive approach
+### Reduntant collision detection

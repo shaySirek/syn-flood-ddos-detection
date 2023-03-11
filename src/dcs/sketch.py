@@ -7,7 +7,6 @@ import pandas as pd
 
 from .utils import (
     int2ip,
-    unpair,
     bit_array,
     bit_array_to_pair,
     LOG_M,
@@ -34,12 +33,7 @@ class DistinctCountSketch:
         self.bit_counter_threshold = bit_counter_threshold
 
         self.X = [None for _ in range(self.first_lvl_hash_buckets)]
-        # self.X = np.zeros((self.first_lvl_hash_buckets,
-        #                    self.r,
-        #                    self.s,
-        #                    self.n_bit_cnt), dtype=int)
-
-        self.h_recorder = [set() for _ in range(64)]
+        self.h_recorder = [set() for _ in range(self.first_lvl_hash_buckets)]
         # self.collisions = defaultdict(
         #     lambda: defaultdict(lambda: defaultdict(set)))
 
@@ -55,14 +49,12 @@ class DistinctCountSketch:
         # first-level bucket
         first_lvl_idx = h(src_ip, dest_ip)
 
+        # init first-level bucket
         if self.X[first_lvl_idx] is None:
-            self.X[first_lvl_idx] = np.zeros((
-                self.r,
-                self.s,
-                self.n_bit_cnt), dtype=int)
+            self.X[first_lvl_idx] = np.zeros(
+                (self.r, self.s, self.n_bit_cnt), dtype=int)
 
         self.h_recorder[first_lvl_idx].add((src_ip, dest_ip))
-        # np.arange(self.r), src, dest -> apply g
 
         for j in range(self.r):
             # second-level bucket
@@ -103,7 +95,7 @@ class DistinctCountSketch:
             b -= 1
 
         print(f"b={b}")
-        
+
         # d_sample = distinct sample of source-dest (u, v) pairs
         print("d_sample")
         print(d_sample)

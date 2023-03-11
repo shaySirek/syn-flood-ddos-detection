@@ -19,7 +19,7 @@ class Dataset:
     def load(self):
         df = pd.read_csv(self.path, usecols=list(
             self.cols.values()))
-
+        
         df[self.cols['src_ip']] = df[self.cols['src_ip']].apply(ip2int)
         df[self.cols['dest_ip']] = df[self.cols['dest_ip']].apply(ip2int)
 
@@ -57,3 +57,13 @@ class Dataset:
         print(f"r={r}, s={s}")
 
         return dict(r=r, s=s), freqs
+
+    def naive_syn_flood_detection(self) -> pd.Series:
+        df = self.df.groupby([self.cols['src_ip'], self.cols['dest_ip']]).sum()
+        df['diff'] = df[self.cols['syn']] - df[self.cols['ack']]
+        df = df[df['diff'] > 0]
+        sources_per_dest = df.groupby(self.cols['dest_ip'])[
+            'diff'].count().rename('sources_per_dest')
+        sources_per_dest = sources_per_dest.sort_values(ascending=False)
+
+        return sources_per_dest
