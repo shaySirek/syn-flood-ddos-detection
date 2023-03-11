@@ -17,25 +17,29 @@ from .hash import h, g
 
 class DistinctCountSketch:
 
-    def __init__(self, log_m: int = LOG_M, r: int = 3, s: int = 128):
+    def __init__(self, log_m: int = LOG_M, r: int = 3, s: int = 128, bit_counter_threshold: int = 0):
         """
             Params:
                 log_m: number of bits in IP address ->
                         number of buckets in first-level hash
                 r: number of second-level hash tables
                 s: number of buckets in second-level hash
+                bit_counter_threshold: threshold for the bit counter
         """
         self.log_m = log_m
         self.first_lvl_hash_buckets = 2 * log_m
         self.r = r
         self.s = s
         self.n_bit_cnt = 2 * log_m + 1
+        self.bit_counter_threshold = bit_counter_threshold
 
-        self.X = np.zeros((self.first_lvl_hash_buckets,
-                           self.r,
-                           self.s,
-                           self.n_bit_cnt), dtype=int)
+        self.X = [None for _ in range(self.first_lvl_hash_buckets)]
+        # self.X = np.zeros((self.first_lvl_hash_buckets,
+        #                    self.r,
+        #                    self.s,
+        #                    self.n_bit_cnt), dtype=int)
 
+        self.h_recorder = [set() for _ in range(64)]
         # self.collisions = defaultdict(
         #     lambda: defaultdict(lambda: defaultdict(set)))
 
@@ -50,6 +54,14 @@ class DistinctCountSketch:
         """
         # first-level bucket
         first_lvl_idx = h(src_ip, dest_ip)
+
+        if self.X[first_lvl_idx] is None:
+            self.X[first_lvl_idx] = np.zeros((
+                self.r,
+                self.s,
+                self.n_bit_cnt), dtype=int)
+
+        self.h_recorder[first_lvl_idx].add((src_ip, dest_ip))
         # np.arange(self.r), src, dest -> apply g
 
         for j in range(self.r):
@@ -59,7 +71,7 @@ class DistinctCountSketch:
             # self.collisions[str(first_lvl_idx)][str(j)][str(
             #     second_lvl_idx)].add((src_ip, dest_ip))
 
-            self.X[first_lvl_idx, j, second_lvl_idx] += flag * \
+            self.X[first_lvl_idx][j, second_lvl_idx] += flag * \
                 bit_array(src_ip, dest_ip)
 
         # with open('collisions.json', 'wt') as f:
@@ -78,15 +90,20 @@ class DistinctCountSketch:
 
         stream.apply(record_row, axis=1)
 
-    def top_k(self, epsilon: float, k: int):
+    def top_k(self, epsilon: float, k: int, threshold: float | None = None):
         b = self.first_lvl_hash_buckets - 1
         d_sample: set[tuple[int, int]] = set()
-        threshold = (1 + epsilon) * (self.s / 16)
+
+        if threshold is None:
+            threshold = (1 + epsilon) * (self.s / 16)
 
         while (b >= 0 and len(d_sample) < threshold):
-            d_sample.update(self.get_d_sample(b))
+            if self.X[b] is not None:  # the bucket is not empty
+                d_sample.update(self.get_d_sample(b))
             b -= 1
 
+        print(f"b={b}")
+        
         # d_sample = distinct sample of source-dest (u, v) pairs
         print("d_sample")
         print(d_sample)
@@ -100,7 +117,7 @@ class DistinctCountSketch:
         print(cnt)
         print(100*"-")
 
-        return [(int2ip(v), (2**(b+1)) * f) for v, f in cnt.most_common(k)]
+        return [(int2ip(v), (2**b) * f) for v, f in cnt.most_common(k)]
 
     def get_d_sample(self, b: int) -> set[tuple[int, int]]:
         ds = set()
@@ -114,4 +131,4 @@ class DistinctCountSketch:
         return ds
 
     def return_singleton(self, b: int, j: int, k: int) -> tuple[int, int] | None:
-        return bit_array_to_pair(self.X[b, j, k])
+        return bit_array_to_pair(self.X[b][j, k], self.bit_counter_threshold)

@@ -41,22 +41,27 @@ def main():
 
     # sketch the stream
     sketch.record_stream(balanced.df, balanced.get_row)
+    for b, s in enumerate(sketch.h_recorder):
+        print(f"{b} -> {len(s)} pairs")
 
-    # query the sketch
-    top_k_ddos_victims = sketch.top_k(epsilon, k)
+    for t in [None, 50, 100, 200]:
+        print(f"threshold={t}")
+        
+        # query the sketch
+        top_k_ddos_victims = sketch.top_k(epsilon, k, threshold=t)
 
-    # analyze results
-    print(freqs.index)
-    for victim in top_k_ddos_victims:
-        ip, est_f = victim
-        int_ip = ip2int(ip)
-        print(int_ip)
+        # analyze results
+        print(freqs.index)
+        for victim in top_k_ddos_victims:
+            ip, est_f = victim
+            int_ip = ip2int(ip)
+            print(int_ip)
 
-        # get real frequency
-        idx = np.argwhere(freqs.index == int_ip)
-        real_f = freqs.values[idx]
+            # get real frequency
+            idx = np.argwhere(freqs.index == int_ip)
+            real_f = freqs.values[idx]
 
-        print(f"ip={ip}, idx={idx}, f={real_f}, estimated={est_f}")
+            print(f"ip={ip}, idx={idx}, f={real_f}, estimated={est_f}")
 
 
 if __name__ == '__main__':

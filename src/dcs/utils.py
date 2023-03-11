@@ -35,8 +35,8 @@ def bit_array(src_ip: int, dest_ip: int):
     return one_src_dest_bits
 
 
-def bit_array_to_pair(bits) -> tuple[int, int] | None:
-    if bits[0] == 0:
+def bit_array_to_pair(bits, threshold: int = 0) -> tuple[int, int] | None:
+    if bits[0] <= threshold:
         return None
 
     src_dest_pair = 0
