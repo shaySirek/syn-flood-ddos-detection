@@ -6,7 +6,7 @@ from dcs import ip2int
 
 def analyze(top_k_ddos_victims, sources_per_dest: pd.Series, result_file_name: str):
     print(f"analyze {result_file_name} ...")
-    
+
     ips = []
     reals = []
     real_idxs = []

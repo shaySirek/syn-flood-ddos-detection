@@ -1,7 +1,6 @@
 import pandas as pd
-import numpy as np
 
-from dcs import DistinctCountSketch, ip2int, int2ip
+from dcs import DistinctCountSketch, int2ip
 from settings import *
 from dataset import Dataset
 from analyze import analyze

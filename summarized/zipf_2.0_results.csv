@@ -1,0 +1,9 @@
+,threshold,last_bucket,distinct destinations in dSample,fix_collision,min relative error,max relative error,mean relative error
+0,Theirs,13,10,without,1.773,4.822,2.129
+1,Theirs,13,10,with,1.773,4.822,2.129
+2,50,10,36,without,0.041,1.773,0.346
+3,50,10,36,with,0.064,2.652,0.569
+4,100,9,45,without,0.085,0.733,0.23
+5,100,9,45,with,0.092,1.439,0.44
+6,200,8,47,without,0.047,0.393,0.282
+7,200,8,47,with,0.003,0.704,0.282
