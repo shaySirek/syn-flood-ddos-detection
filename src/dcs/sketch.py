@@ -1,6 +1,5 @@
-from collections import defaultdict, Counter
+from collections import Counter
 from typing import Callable, Any
-import json
 
 import numpy as np
 import pandas as pd
@@ -10,6 +9,7 @@ from .utils import (
     bit_array,
     bit_array_to_pair,
     LOG_M,
+    BucketStatus
 )
 from .hash import h, g
 
@@ -36,8 +36,6 @@ class DistinctCountSketch:
 
         self.X = [None for _ in range(self.first_lvl_hash_buckets)]
         self.h_recorder = [set() for _ in range(self.first_lvl_hash_buckets)]
-        # self.collisions = defaultdict(
-        #     lambda: defaultdict(lambda: defaultdict(set)))
 
     def record(self, src_ip: int, dest_ip: int, flag: int):
         """Record incoming (src_ip, dest_ip) pair, with TCP flag of SYN/ACK
@@ -49,29 +47,20 @@ class DistinctCountSketch:
                     -1 for ACK
         """
         # first-level bucket
-        first_lvl_idx = h(src_ip, dest_ip)
+        b = h(src_ip, dest_ip)
 
         # init first-level bucket
-        if self.X[first_lvl_idx] is None:
-            self.X[first_lvl_idx] = np.zeros(
+        if self.X[b] is None:
+            self.X[b] = np.zeros(
                 (self.r, self.s, self.n_bit_cnt), dtype=int)
 
-        self.h_recorder[first_lvl_idx].add((src_ip, dest_ip))
+        self.h_recorder[b].add((src_ip, dest_ip))
 
         for j in range(self.r):
             # second-level bucket
-            second_lvl_idx = g(j, src_ip, dest_ip)
+            k = g(j, src_ip, dest_ip)
 
-            # self.collisions[str(first_lvl_idx)][str(j)][str(
-            #     second_lvl_idx)].add((src_ip, dest_ip))
-
-            self.X[first_lvl_idx][j, second_lvl_idx] += flag * \
-                bit_array(src_ip, dest_ip)
-
-        # with open('collisions.json', 'wt') as f:
-        #     ser_col = {k: [f"{int2ip(x[0])} -> {int2ip(x[1])}" for x in v]
-        #                for k, v in self.collisions.items()}
-        #     json.dump(ser_col, f)
+            self.X[b][j, k] += flag * bit_array(src_ip, dest_ip)
 
     def record_stream(self, stream: pd.DataFrame, get_row: Callable[[Any], tuple[int, int, int] | None]):
         def record_row(row):
@@ -85,49 +74,78 @@ class DistinctCountSketch:
         print(100*'*')
         print("record_stream")
         stream.apply(record_row, axis=1)
-
-    def top_k(self, epsilon: float, k: int, threshold: float | None = None):
+        
+        # print First-level buckets
+        print(100*'*')
+        print("First-level buckets:")
+        for b, s in enumerate(self.h_recorder):
+            print(f"{b} -> {len(s)} pairs")
+        
+    def top_k(self, epsilon: float, k: int, threshold: float | None = None, fix_collision: bool = False):
+        if threshold is None:
+            threshold = (1 + epsilon) * (self.s / 16)
+        
         print(100*'*')
         print(f"top_k with threshold={threshold}")
         
         b = self.first_lvl_hash_buckets - 1
         d_sample: set[tuple[int, int]] = set()
-
-        if threshold is None:
-            threshold = (1 + epsilon) * (self.s / 16)
+        cnt = Counter()
 
         while (b >= 0 and len(d_sample) < threshold):
             if self.X[b] is not None:  # the bucket is not empty
-                d_sample.update(self.get_d_sample(b))
+                pairs, uncollisioned_rate = self.get_d_sample(b)
+                print(f"b={b}, uncollisioned_rate={uncollisioned_rate}")
+                
+                # count sources for each destination in current first bucket b
+                b_cnt = Counter()
+                for _, v in pairs:
+                    b_cnt[v] += 1
+                
+                # divide by the collision rate in this bucket if the option is enabled
+                if fix_collision:
+                    for v in cnt.keys():
+                        b_cnt[v] /= uncollisioned_rate
+                
+                # sum up
+                cnt = cnt + b_cnt
+                d_sample.update(pairs)
+            
             b -= 1
 
-        print(f"b={b}")
-
         # d_sample = distinct sample of source-dest (u, v) pairs
-        print(100*"-")
-        print("d_sample")
-        print(d_sample)
 
-        cnt = Counter()
-        for _, v in d_sample:
-            cnt[v] += 1
+        # we do it inside the loop for each bucket b -> b_cnt, summing up to cnt
+        # cnt = Counter()
+        # for _, v in d_sample:
+        #     cnt[v] += 1
 
         print(100*"-")
-        print("cnt")
-        print(cnt)
+        distinct_dests = len(cnt)
+        print(f"exit with b={b}, {distinct_dests} distinct destinations")
+        print(f"f: {[(int2ip(v), f) for v, f in cnt.most_common(distinct_dests)]}")
+        print(100*"-")
 
         return [(int2ip(v), (2**b) * f) for v, f in cnt.most_common(k)]
 
-    def get_d_sample(self, b: int) -> set[tuple[int, int]]:
+    def get_d_sample(self, b: int) -> tuple[set[tuple[int, int]], float]:
         ds = set()
-
+        collisions = 0
+        
         for j in range(self.r):
             for k in range(self.s):
-                pair = self.return_singleton(b, j, k)
-                if pair is not None:
+                status, pair = self.return_singleton(b, j, k)
+                if status == BucketStatus.PAIR:
                     ds.add(pair)
+                elif status == BucketStatus.COLLISION:
+                    collisions += 1
 
-        return ds
+        uncollisioned_rate = 1.
+        denom = collisions + len(ds)
+        if denom > 0:
+            uncollisioned_rate = len(ds) / denom
+            
+        return ds, uncollisioned_rate
 
-    def return_singleton(self, b: int, j: int, k: int) -> tuple[int, int] | None:
+    def return_singleton(self, b: int, j: int, k: int) -> tuple[BucketStatus, tuple[int, int] | None]:
         return bit_array_to_pair(self.X[b][j, k], self.bit_counter_threshold)

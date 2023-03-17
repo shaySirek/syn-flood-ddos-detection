@@ -1,8 +1,15 @@
+from enum import Enum
 import ipaddress
+
 import numpy as np
 
 
 LOG_M = 32
+
+class BucketStatus(Enum):
+    PAIR = 0
+    COLLISION = 1
+    EMPTY = 2
 
 
 def ip2int(ip): return int(ipaddress.IPv4Address(ip))
@@ -35,9 +42,9 @@ def bit_array(src_ip: int, dest_ip: int):
     return one_src_dest_bits
 
 
-def bit_array_to_pair(bits, threshold: int = 0) -> tuple[int, int] | None:
+def bit_array_to_pair(bits, threshold: int = 0) -> tuple[BucketStatus, tuple[int, int] | None]:
     if bits[0] <= threshold:
-        return None
+        return BucketStatus.EMPTY, None
 
     src_dest_pair = 0
 
@@ -45,6 +52,6 @@ def bit_array_to_pair(bits, threshold: int = 0) -> tuple[int, int] | None:
         if bits[l] == bits[0]:  # set bit l of (u,v) pair
             src_dest_pair = src_dest_pair | (1 << (l-1))
         elif bits[l] != 0:  # collision >=2 pairs in the bucket
-            return None
+            return BucketStatus.COLLISION, None
 
-    return unpair(src_dest_pair)
+    return BucketStatus.PAIR, unpair(src_dest_pair)

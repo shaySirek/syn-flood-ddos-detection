@@ -28,7 +28,7 @@ src_ip,dst_ip,syn_flg,ack_flg
 ```
 
 ## Baseline
-Calculate Source of Truth using Naive approach: [`naive_syn_flood_detection`](./src/ddos_dataset/dataset.py).
+Calculate Source of Truth using Naive approach: [`naive_syn_flood_detection`](./src/dataset.py).
 
 ## Ideas
 Our ideas for improvements.
@@ -60,7 +60,7 @@ Therefore, we can maintain two intances of the data structure:
 Example:
 
 - `dest_ip 1` has 5 `src_ip`s in `bucket` 9.
-- `Bucket` 9 has 50% `collisions = n_collision_in_all_bucket / (n_collision_in_all_bucket + n_src_ip_in_all_bucket)`.
+- `Bucket` 9 has 50% `uncollisioned = n_src_ip_in_all_bucket / (n_collision_in_all_bucket + n_src_ip_in_all_bucket)`.
 - So, staticically, `dest_ip 1` has `5 * (1/0.5) = 10` `src_ip`s in this bucket.
 
 ### Reduntant collision detection

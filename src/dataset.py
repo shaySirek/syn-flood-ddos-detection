@@ -1,15 +1,12 @@
 from math import log2 as log
-import ipaddress
 
 import pandas as pd
 
-
-def ip2int(ip): return int(ipaddress.IPv4Address(ip))
+from dcs import ip2int
 
 
 class Dataset:
-    def __init__(self, root_dir: str, path: str, cols: dict[str, str], load: bool):
-        self.root_dir = root_dir
+    def __init__(self, path: str, cols: dict[str, str], load: bool = True):
         self.path = path
         self.cols = cols
 
