@@ -51,16 +51,17 @@ class DistinctCountSketch:
 
         # init first-level bucket
         if self.X[b] is None:
-            self.X[b] = np.zeros(
-                (self.r, self.s, self.n_bit_cnt), dtype=int)
+            self.X[b] = [[None for _ in range(self.s)] for _ in range(self.r)]
 
         self.h_recorder[b].add((src_ip, dest_ip))
 
         for j in range(self.r):
             # second-level bucket
             k = g(j, src_ip, dest_ip)
-
-            self.X[b][j, k] += flag * bit_array(src_ip, dest_ip)
+            # init second-level bucket
+            if self.X[b][j][k] is None:
+                self.X[b][j][k] = np.zeros((self.n_bit_cnt), dtype=int)
+            self.X[b][j][k] += flag * bit_array(src_ip, dest_ip)
 
     def record_stream(self, stream: pd.DataFrame, get_row: Callable[[Any], tuple[int, int, int] | None]):
         def record_row(row):
@@ -115,11 +116,6 @@ class DistinctCountSketch:
 
         # d_sample = distinct sample of source-dest (u, v) pairs
 
-        # we do it inside the loop for each bucket b -> b_cnt, summing up to cnt
-        # cnt = Counter()
-        # for _, v in d_sample:
-        #     cnt[v] += 1
-
         print(100*"-")
         distinct_dests = len(cnt)
         print(f"exit with b={b}, {distinct_dests} distinct destinations")
@@ -134,11 +130,12 @@ class DistinctCountSketch:
         
         for j in range(self.r):
             for k in range(self.s):
-                status, pair = self.return_singleton(b, j, k)
-                if status == BucketStatus.PAIR:
-                    ds.add(pair)
-                elif status == BucketStatus.COLLISION:
-                    collisions += 1
+                if self.X[b][j][k] is not None:  # the bucket is not empty
+                    status, pair = self.return_singleton(b, j, k)
+                    if status == BucketStatus.PAIR:
+                        ds.add(pair)
+                    elif status == BucketStatus.COLLISION:
+                        collisions += 1
 
         uncollisioned_rate = 1.
         denom = collisions + len(ds)
@@ -148,4 +145,4 @@ class DistinctCountSketch:
         return ds, uncollisioned_rate
 
     def return_singleton(self, b: int, j: int, k: int) -> tuple[BucketStatus, tuple[int, int] | None]:
-        return bit_array_to_pair(self.X[b][j, k], self.bit_counter_threshold)
+        return bit_array_to_pair(self.X[b][j][k], self.bit_counter_threshold)
